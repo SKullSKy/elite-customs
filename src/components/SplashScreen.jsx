@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 
+// Persists for the lifetime of the JS bundle — resets on hard refresh, skipped on back-navigation
+let splashPlayed = false
+
 export default function SplashScreen({ onComplete }) {
   const [exiting, setExiting] = useState(false)
-  const [gone,    setGone]    = useState(false)
+  const [gone,    setGone]    = useState(splashPlayed)
 
   useEffect(() => {
+    if (splashPlayed) { onComplete?.(); return }
+
     document.body.style.overflow = 'hidden'
     const t1 = setTimeout(() => setExiting(true), 2000)
     const t2 = setTimeout(() => {
       document.body.style.overflow = ''
+      splashPlayed = true
       setGone(true)
       onComplete?.()
     }, 3200)

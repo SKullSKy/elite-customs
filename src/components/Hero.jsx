@@ -1,10 +1,20 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'framer-motion'
+import { useLanguage } from '../context/LanguageContext'
 
-const EASE       = [0.16, 1, 0.3, 1]
-const PRE_START  = 17.0  // start next video silently so it's warm before the fade
-const FADE_START = 18.5  // begin opacity crossfade
-const FADE_MS    = 1500  // crossfade duration ms
+const EASE    = [0.16, 1, 0.3, 1]
+const FADE_MS = 2200
+
+// Each clip's actual duration — fade starts 2.8s before end
+const CLIPS = [
+  { src: '/assets/hero2.mp4', duration: 8.19  },
+  { src: '/assets/hero3.mp4', duration: 6.69  },
+  { src: '/assets/hero1.mp4', duration: 7.27  },
+  { src: '/assets/hero4.mp4', duration: 15.04 },
+  { src: '/assets/hero5.mp4', duration: 16.02 },
+]
+const FADE_BEFORE = 2.8  // seconds before end to start crossfade
+const PRE_BEFORE  = 5.0  // seconds before end to start loading next
 
 function useMagnetic(strength = 0.26) {
   const ref = useRef(null)
@@ -31,70 +41,113 @@ const item = {
 }
 
 export default function Hero() {
-  const containerRef = useRef(null)
-  const v0Ref        = useRef(null)
-  const v1Ref        = useRef(null)
-  const timerRef     = useRef(null)
-  const preWarmed    = useRef(false)
-  const [activeIdx, setActiveIdx] = useState(0)
+  const { t } = useLanguage()
 
+  // Two video slots — we ping-pong between them
+  const aRef = useRef(null)
+  const bRef = useRef(null)
+
+  // Which slot is currently the foreground (opacity: 1)
+  const [fgSlot, setFgSlot] = useState('a')
+
+  // Which clip index is playing in each slot
+  const fgIdx   = useRef(0)
+  const bgIdx   = useRef(1)
+
+  const timerRef    = useRef(null)
+  const preWarmed   = useRef(false)
+  const fading      = useRef(false)
+
+  const containerRef = useRef(null)
   const { scrollY }  = useScroll()
   const contentY     = useTransform(scrollY, [0, 650], [0, -55])
   const contentAlpha = useTransform(scrollY, [0, 380], [1, 0])
 
   const btn1 = useMagnetic()
   const btn2 = useMagnetic()
+  const btn3 = useMagnetic()
 
-  // Pause + reset video 1 on mount so only video 0 plays first
+  // helpers
+  const getRef  = (slot) => slot === 'a' ? aRef : bRef
+  const fgRef   = () => getRef(fgSlot)
+  const bgRef   = () => getRef(fgSlot === 'a' ? 'b' : 'a')
+
+  // Kick off on mount: play first clip in slot A, preload slot B with clip 1
   useEffect(() => {
-    const v1 = v1Ref.current
-    if (v1) { v1.pause(); v1.currentTime = 0 }
+    const a = aRef.current
+    const b = bRef.current
+    if (!a || !b) return
+
+    a.src = CLIPS[0].src
+    a.style.opacity = '1'
+    a.play().catch(() => {})
+
+    b.src = CLIPS[1].src
+    b.style.opacity = '0'
+    b.load()
   }, [])
 
-  // Crossfade logic — re-runs whenever activeIdx changes
+  // Crossfade controller — re-attaches whenever fgSlot changes
   useEffect(() => {
-    const refs   = [v0Ref, v1Ref]
-    const active = refs[activeIdx].current
-    const next   = refs[1 - activeIdx].current
-    if (!active || !next) return
+    const fg   = fgRef().current
+    const bg   = bgRef().current
+    if (!fg || !bg) return
 
-    const onTimeUpdate = () => {
-      const t = active.currentTime
+    const clip    = CLIPS[fgIdx.current]
+    const fadeAt  = clip.duration - FADE_BEFORE
+    const preAt   = clip.duration - PRE_BEFORE
 
-      // Pre-warm: start next video silently 1.5s before the visible fade
-      // so the browser has already decoded frames before we need them
-      if (t >= PRE_START && !preWarmed.current) {
+    preWarmed.current = false
+    fading.current    = false
+
+    const onTime = () => {
+      const ct = fg.currentTime
+
+      // Pre-warm background slot
+      if (ct >= preAt && !preWarmed.current) {
         preWarmed.current = true
-        next.currentTime = 0
-        next.play().catch(() => {})
+        bg.currentTime = 0
+        bg.play().catch(() => {})
       }
 
-      // Begin crossfade — both videos are already rendering at this point
-      if (t >= FADE_START && !timerRef.current) {
-        active.style.transition = `opacity ${FADE_MS}ms ease-in-out`
-        active.style.opacity    = '0'
+      // Start crossfade — bring bg UP on top, fg stays fully visible underneath
+      if (ct >= fadeAt && !fading.current) {
+        fading.current = true
 
-        next.style.transition   = `opacity ${FADE_MS}ms ease-in-out`
-        next.style.opacity      = '1'
+        // bg slides in on top; fg stays at opacity 1 the whole time
+        bg.style.zIndex    = '2'
+        fg.style.zIndex    = '1'
+        bg.style.transition = `opacity ${FADE_MS}ms cubic-bezier(0.37,0,0.63,1)`
+        bg.style.opacity    = '1'
 
         timerRef.current = setTimeout(() => {
-          active.pause()
-          active.currentTime      = 0
-          active.style.transition = 'none'
-          active.style.opacity    = '0'
-          preWarmed.current       = false
-          setActiveIdx(prev => 1 - prev)
-          timerRef.current        = null
+          // bg is now fully visible — instantly hide fg beneath it
+          fg.style.transition = 'none'
+          fg.style.opacity    = '0'
+          fg.style.zIndex     = '1'
+          fg.pause()
+
+          // Advance indices
+          fgIdx.current = bgIdx.current
+          bgIdx.current = (bgIdx.current + 1) % CLIPS.length
+
+          // Load next clip into the now-background slot
+          fg.src = CLIPS[bgIdx.current].src
+          fg.load()
+
+          setFgSlot(prev => prev === 'a' ? 'b' : 'a')
+          timerRef.current = null
         }, FADE_MS + 150)
       }
     }
 
-    active.addEventListener('timeupdate', onTimeUpdate)
+    fg.addEventListener('timeupdate', onTime)
     return () => {
-      active.removeEventListener('timeupdate', onTimeUpdate)
+      fg.removeEventListener('timeupdate', onTime)
       clearTimeout(timerRef.current)
     }
-  }, [activeIdx])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fgSlot])
 
   return (
     <section
@@ -102,30 +155,29 @@ export default function Hero() {
       id="hero"
       className="relative w-full h-screen flex items-end overflow-hidden"
     >
-      {/* Video backgrounds — no parallax, plain GPU layers */}
+      {/* Slot A */}
       <video
-        ref={v0Ref}
-        src="/assets/showcase.mp4"
-        autoPlay
+        ref={aRef}
         muted
         playsInline
         preload="auto"
         className="absolute inset-0 w-full h-full object-cover object-center"
-        style={{ opacity: 1, willChange: 'opacity', transform: 'translateZ(0)' }}
+        style={{ opacity: 1, zIndex: 1, willChange: 'opacity', transform: 'translateZ(0)' }}
       />
+      {/* Slot B */}
       <video
-        ref={v1Ref}
-        src="/assets/showcase2.mp4"
+        ref={bRef}
         muted
         playsInline
         preload="auto"
         className="absolute inset-0 w-full h-full object-cover object-center"
-        style={{ opacity: 0, willChange: 'opacity', transform: 'translateZ(0)' }}
+        style={{ opacity: 0, zIndex: 1, willChange: 'opacity', transform: 'translateZ(0)' }}
       />
 
       {/* Gradient overlays */}
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.35) 45%, rgba(0,0,0,0.15) 100%)' }}/>
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.65) 0%, transparent 65%)' }}/>
+      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.28)' }}/>
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.97) 0%, rgba(0,0,0,0.55) 40%, rgba(0,0,0,0.15) 75%, transparent 100%)' }}/>
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.4) 45%, transparent 75%)' }}/>
 
       {/* Content */}
       <motion.div
@@ -138,15 +190,19 @@ export default function Hero() {
             className="font-heading text-ec-gold mb-4"
             style={{ fontSize: '11px', letterSpacing: '0.4em', fontWeight: 800 }}
           >
-            PREMIUM CAR CARE · LATVIJA
+            {t.hero.tag}
           </motion.p>
 
           <motion.h1
             variants={item}
             className="font-display text-ec-white leading-none mb-2"
-            style={{ fontSize: 'clamp(52px, 9vw, 130px)', letterSpacing: '0.02em' }}
+            style={{
+              fontSize: 'clamp(52px, 9vw, 130px)',
+              letterSpacing: '0.02em',
+              textShadow: '0 2px 32px rgba(0,0,0,0.85), 0 0 64px rgba(0,0,0,0.6)',
+            }}
           >
-            EVERY DETAIL.
+            {t.hero.line1}
           </motion.h1>
 
           <motion.h1
@@ -155,47 +211,60 @@ export default function Hero() {
             style={{
               fontSize: 'clamp(52px, 9vw, 130px)',
               letterSpacing: '0.02em',
-              WebkitTextStroke: '1px rgba(201,168,76,0.8)',
+              WebkitTextStroke: '2px rgba(201,168,76,0.95)',
               color: 'transparent',
+              textShadow: '0 2px 32px rgba(0,0,0,0.9), 0 0 64px rgba(0,0,0,0.7)',
             }}
           >
-            PERFECTED.
+            {t.hero.line2}
           </motion.h1>
 
           <motion.p
             variants={item}
-            className="font-body text-ec-white/70 mb-10 max-w-md leading-relaxed"
-            style={{ fontSize: '15px', fontWeight: 400 }}
+            className="font-body mb-10 max-w-md leading-relaxed"
+            style={{ fontSize: '15px', fontWeight: 400, color: '#0A0A0A' }}
           >
-            Professional washing and detailing — we treat your vehicle
-            the way it deserves to be treated.
+            {t.hero.body}
           </motion.p>
 
           <motion.div variants={item} className="flex flex-wrap gap-4">
             <motion.a
               ref={btn1.ref}
-              href="#washing"
+              href="/mazgasana"
               onMouseMove={btn1.onMove}
               onMouseLeave={btn1.onLeave}
-              style={{ x: btn1.sx, y: btn1.sy, letterSpacing: '0.2em', fontWeight: 800 }}
+              style={{ x: btn1.sx, y: btn1.sy, letterSpacing: '0.2em', fontWeight: 800, background: '#0A0A0A', border: '1px solid rgba(201,168,76,0.4)' }}
               whileHover={{ scale: 1.05 }}
               transition={{ scale: { duration: 0.28, ease: EASE } }}
-              className="font-heading text-xs text-ec-black bg-ec-gold px-8 py-4 hover:bg-ec-gold-dim transition-colors duration-300"
+              className="font-heading text-xs text-ec-gold px-8 py-4 hover:border-ec-gold transition-colors duration-300"
             >
-              MAZGĀŠANA
+              {t.hero.btnWash}
             </motion.a>
 
             <motion.a
               ref={btn2.ref}
-              href="#detailing"
+              href="/detailing"
               onMouseMove={btn2.onMove}
               onMouseLeave={btn2.onLeave}
-              style={{ x: btn2.sx, y: btn2.sy, letterSpacing: '0.2em', fontWeight: 800, border: '1px solid rgba(201,168,76,0.5)' }}
+              style={{ x: btn2.sx, y: btn2.sy, letterSpacing: '0.2em', fontWeight: 800, background: '#0A0A0A', border: '1px solid rgba(201,168,76,0.4)' }}
               whileHover={{ scale: 1.05 }}
               transition={{ scale: { duration: 0.28, ease: EASE } }}
-              className="font-heading text-xs text-ec-white px-8 py-4 hover:text-ec-gold transition-colors duration-300"
+              className="font-heading text-xs text-ec-gold px-8 py-4 hover:border-ec-gold transition-colors duration-300"
             >
-              DETAILING
+              {t.hero.btnDetail}
+            </motion.a>
+
+            <motion.a
+              ref={btn3.ref}
+              href="/pulesana"
+              onMouseMove={btn3.onMove}
+              onMouseLeave={btn3.onLeave}
+              style={{ x: btn3.sx, y: btn3.sy, letterSpacing: '0.2em', fontWeight: 800, background: '#0A0A0A', border: '1px solid rgba(201,168,76,0.4)' }}
+              whileHover={{ scale: 1.05 }}
+              transition={{ scale: { duration: 0.28, ease: EASE } }}
+              className="font-heading text-xs text-ec-gold px-8 py-4 hover:border-ec-gold transition-colors duration-300"
+            >
+              {t.hero.btnPolish}
             </motion.a>
           </motion.div>
         </motion.div>

@@ -1,14 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useLanguage } from '../context/LanguageContext'
 
 const EASE = [0.16, 1, 0.3, 1]
-
-const links = [
-  { label: 'HOME',      href: '#hero'     },
-  { label: 'MAZGĀŠANA', href: '#washing'  },
-  { label: 'DETAILING', href: '#detailing' },
-  { label: 'KONTAKTI',  href: '#contact'  },
-]
+const LANGS = ['LV', 'EN', 'RU']
 
 function NavLink({ label, href, onClick }) {
   return (
@@ -21,7 +16,6 @@ function NavLink({ label, href, onClick }) {
       transition={{ duration: 0.22, ease: EASE }}
     >
       {label}
-      {/* animated gold underline on hover */}
       <motion.span
         className="absolute -bottom-0.5 left-0 h-px bg-ec-gold"
         initial={{ scaleX: 0, originX: 0 }}
@@ -33,9 +27,71 @@ function NavLink({ label, href, onClick }) {
   )
 }
 
+function LangSwitcher({ mobile }) {
+  const { lang, setLang } = useLanguage()
+
+  if (mobile) {
+    return (
+      <div className="flex items-center justify-center gap-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        {LANGS.map((l) => (
+          <button
+            key={l}
+            onClick={() => setLang(l)}
+            className="font-heading transition-colors duration-200"
+            style={{
+              fontSize: '11px',
+              letterSpacing: '0.2em',
+              fontWeight: 800,
+              color: lang === l ? '#C9A84C' : 'rgba(255,255,255,0.35)',
+            }}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="flex items-center gap-2"
+      style={{ borderLeft: '1px solid rgba(255,255,255,0.12)', paddingLeft: '16px', marginLeft: '8px' }}
+    >
+      {LANGS.map((l, i) => (
+        <Fragment key={l}>
+          {i > 0 && (
+            <span style={{ color: 'rgba(255,255,255,0.18)', fontSize: '10px', userSelect: 'none' }}>·</span>
+          )}
+          <button
+            onClick={() => setLang(l)}
+            className="font-heading transition-colors duration-200"
+            style={{
+              fontSize: '10px',
+              letterSpacing: '0.15em',
+              fontWeight: 800,
+              color: lang === l ? '#C9A84C' : 'rgba(255,255,255,0.32)',
+              padding: '2px 0',
+            }}
+          >
+            {l}
+          </button>
+        </Fragment>
+      ))}
+    </div>
+  )
+}
+
 export default function Nav() {
+  const { t } = useLanguage()
   const [scrolled,  setScrolled]  = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+
+  const links = [
+    { label: t.nav.home,     href: '#hero'      },
+    { label: t.nav.services, href: '#services'  },
+    { label: t.nav.sales,    href: '#pardosana' },
+    { label: t.nav.contact,  href: '#contact'   },
+  ]
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60)
@@ -53,7 +109,7 @@ export default function Nav() {
         borderBottom: scrolled ? '1px solid rgba(201,168,76,0.15)' : 'none',
       }}
     >
-      <nav className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+      <nav className="max-w-7xl mx-auto px-6 h-20 grid grid-cols-3 items-center">
         {/* Left links */}
         <div className="hidden md:flex items-center gap-10">
           {links.slice(0, 2).map((l) => (
@@ -62,36 +118,33 @@ export default function Nav() {
         </div>
 
         {/* Centre logo */}
-        <motion.a
-          href="#hero"
-          className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center"
-          whileHover={{ scale: 1.04 }}
-          transition={{ duration: 0.28, ease: EASE }}
-        >
-          <span
-            className="font-display text-2xl text-ec-white"
-            style={{ letterSpacing: '0.35em' }}
+        <div className="col-start-2 flex justify-center">
+          <motion.a
+            href="#hero"
+            className="flex items-baseline"
+            whileHover={{ scale: 1.04 }}
+            transition={{ duration: 0.28, ease: EASE }}
           >
-            ELITE
-          </span>
-          <span
-            className="font-heading text-xs text-ec-gold"
-            style={{ letterSpacing: '0.45em', marginTop: '-2px', fontWeight: 800 }}
-          >
-            CUSTOMS
-          </span>
-        </motion.a>
+            <span className="font-script text-ec-gold" style={{ fontSize: '32px', lineHeight: 1 }}>
+              Elite
+            </span>
+            <span className="font-brush text-ec-white" style={{ fontSize: '26px', lineHeight: 1 }}>
+              Customs
+            </span>
+          </motion.a>
+        </div>
 
-        {/* Right links */}
-        <div className="hidden md:flex items-center gap-10">
+        {/* Right links + language switcher */}
+        <div className="hidden md:flex items-center justify-end gap-10">
           {links.slice(2).map((l) => (
             <NavLink key={l.href} {...l} />
           ))}
+          <LangSwitcher />
         </div>
 
         {/* Mobile hamburger */}
         <motion.button
-          className="md:hidden ml-auto text-ec-white"
+          className="md:hidden col-start-3 justify-self-end text-ec-white"
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label="Toggle menu"
           whileTap={{ scale: 0.92 }}
@@ -129,7 +182,7 @@ export default function Nav() {
             style={{ background: 'rgba(10,10,10,0.98)' }}
           >
             <motion.div
-              className="flex flex-col items-center gap-6 py-8"
+              className="flex flex-col items-center gap-6 py-8 px-6"
               initial="hidden"
               animate="show"
               variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
@@ -149,6 +202,15 @@ export default function Nav() {
                   {l.label}
                 </motion.a>
               ))}
+              <motion.div
+                className="w-full"
+                variants={{
+                  hidden: { opacity: 0, y: 12 },
+                  show:   { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } },
+                }}
+              >
+                <LangSwitcher mobile />
+              </motion.div>
             </motion.div>
           </motion.div>
         )}

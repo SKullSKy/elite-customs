@@ -16,6 +16,8 @@ export default {
         display: ['"Bebas Neue"', 'sans-serif'],
         heading: ['Montserrat', 'sans-serif'],
         body: ['Inter', 'sans-serif'],
+        script: ['"Alex Brush"', 'cursive'],
+        brush: ['Pacifico', 'cursive'],
       },
       letterSpacing: {
         widest2: '0.3em',
