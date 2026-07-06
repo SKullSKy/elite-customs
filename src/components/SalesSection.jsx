@@ -5,17 +5,9 @@ import { CircleDot, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { store } from '../admin/services/store'
 import { listings as staticListings } from '../data/listings'
+import { mergeWithStatic } from '../utils/listingsUtil'
 
 const EASE = [0.16, 1, 0.3, 1]
-
-// Build lookup by lowercase name for merging photos + specs from static file
-const staticByName = {}
-staticListings.forEach(l => { staticByName[l.name.toLowerCase()] = l })
-
-function mergeWithStatic(supaListing) {
-  const s = staticByName[supaListing.name.toLowerCase()]
-  return { ...supaListing, imgs: s?.imgs ?? [], specs: s?.specs ?? [], id: s?.id ?? supaListing.id }
-}
 
 export default function SalesSection() {
   const { t } = useLanguage()
@@ -24,7 +16,9 @@ export default function SalesSection() {
 
   useEffect(() => {
     const load = () => store.getListings()
-      .then(data => setDbListings(data.filter(l => l.active).map(mergeWithStatic)))
+      .then(data => setDbListings(
+        data.filter(l => l.active).map(mergeWithStatic).sort((a, b) => a.id - b.id)
+      ))
       .catch(() => setDbListings(staticListings))
     load()
     const onVisible = () => { if (!document.hidden) load() }
@@ -220,7 +214,7 @@ function ListingCard({ item }) {
               className="font-heading text-ec-white"
               style={{ fontSize: '10px', letterSpacing: '0.3em', fontWeight: 800, background: 'rgba(0,0,0,0.55)', padding: '8px 18px', border: '1px solid rgba(201,168,76,0.4)' }}
             >
-              SKATĪT →
+              {t.sales.viewBtn}
             </span>
           </div>
         </div>
@@ -263,7 +257,7 @@ function ListingCard({ item }) {
             </span>
           ) : (
             <span className="font-heading text-ec-muted" style={{ fontSize: '13px', letterSpacing: '0.1em', fontWeight: 300 }}>
-              Cena pēc pieprasījuma
+              {t.sales.priceOnRequest}
             </span>
           )}
 

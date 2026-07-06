@@ -4,7 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, CircleDot, X } from 'lucide-react'
 import { FaWhatsapp, FaEnvelope, FaExternalLinkAlt } from 'react-icons/fa'
 import { useLanguage } from '../context/LanguageContext'
-import { listings } from '../data/listings'
+import { listings as staticListings } from '../data/listings'
+import { store } from '../admin/services/store'
+import { mergeWithStatic } from '../utils/listingsUtil'
 import PageLayout from '../components/PageLayout'
 
 const EASE = [0.16, 1, 0.3, 1]
@@ -13,11 +15,19 @@ export default function ListingPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { t } = useLanguage()
-  const listing = listings.find(l => l.id === Number(id))
+  const [listings, setListings] = useState(null)
 
   useEffect(() => {
-    if (!listing) navigate('/#pardosana', { replace: true })
-  }, [listing])
+    store.getListings()
+      .then(data => setListings(data.map(mergeWithStatic)))
+      .catch(() => setListings(staticListings))
+  }, [])
+
+  const listing = listings?.find(l => l.id === Number(id))
+
+  useEffect(() => {
+    if (listings && !listing) navigate('/#pardosana', { replace: true })
+  }, [listings, listing])
 
   if (!listing) return null
 
@@ -127,7 +137,7 @@ export default function ListingPage() {
                 {/* Price */}
                 <div className="mb-8" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '24px' }}>
                   <p className="font-heading text-ec-muted mb-1" style={{ fontSize: '10px', letterSpacing: '0.35em', fontWeight: 700 }}>
-                    CENA
+                    {t.listing.priceLabel}
                   </p>
                   {listing.price ? (
                     <span className="font-display text-ec-white" style={{ fontSize: '52px', letterSpacing: '0.04em', lineHeight: 1 }}>
@@ -136,7 +146,7 @@ export default function ListingPage() {
                     </span>
                   ) : (
                     <span className="font-heading text-ec-muted" style={{ fontSize: '16px', letterSpacing: '0.1em' }}>
-                      Cena pēc pieprasījuma
+                      {t.listing.priceOnRequest}
                     </span>
                   )}
                   <p className="font-body text-ec-muted mt-2" style={{ fontSize: '11px', fontWeight: 300 }}>
