@@ -228,7 +228,7 @@ export default function ContactSection() {
               <div className="flex flex-col gap-3">
                 {[
                   { href: 'https://wa.me/37122332628', Icon: FaWhatsapp, label: 'WhatsApp', sub: '+371 22332628' },
-                  { href: 'mailto:elitecustomslv@gmail.com', Icon: FaEnvelope, label: 'E-pasts', sub: 'elitecustomslv@gmail.com' },
+                  { href: 'mailto:elitecustomslv@gmail.com', Icon: FaEnvelope, label: t.contact.emailLabel, sub: 'elitecustomslv@gmail.com' },
                 ].map(({ href, Icon, label, sub }) => (
                   <a
                     key={label}
@@ -282,10 +282,34 @@ export default function ContactSection() {
         </div>
       </div>
 
+      {/* Legal / company details */}
+      <div
+        className="relative z-10 max-w-7xl mx-auto px-6 pt-10"
+        style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+      >
+        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-center">
+          {[
+            'SIA ELITE CUSTOMS',
+            'Reģ.Nr.: 40203424914',
+            'Juridiskā adrese: Alejas iela 9, Ozolnieki, LV-3018',
+            'Faktiskā adrese: Jaungundegas, Cenu pag.',
+            'Swedbank: LV90HABA0551057290574',
+          ].map((line) => (
+            <span
+              key={line}
+              className="font-body text-ec-white/30"
+              style={{ fontSize: '10.5px', fontWeight: 400, letterSpacing: '0.03em' }}
+            >
+              {line}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* Footer strip */}
       <div
         className="relative z-10 max-w-7xl mx-auto px-6 pb-10 flex flex-col md:flex-row items-center justify-between gap-4"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '32px' }}
+        style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: '24px', paddingTop: '32px' }}
       >
         <span className="font-display text-ec-white/25" style={{ fontSize: '18px', letterSpacing: '0.3em' }}>
           ELITE CUSTOMS
